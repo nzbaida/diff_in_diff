@@ -1,0 +1,341 @@
+---
+title: "Diff in Diff"
+author: "Nathaniel Zbaida"
+date: "2022-11-24"
+output: html_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+# Aides for America
+```{r import}
+rm(list = ls())
+setwd("C:/Users/natty/OneDrive/Documents")
+data <- read.csv("dd_data_set.csv")
+head(data)
+```
+
+```{r, echo=FALSE}
+library(plyr)
+library(sandwich)
+library(lmtest)
+library(knitr)
+library(car)
+```
+
+1. 
+```{r treatments}
+#Histrogram of First Year of Treatment
+hist(data$yr1_treatment[which(data$yr1_treatment != 0)], xlab = "First Year of Treatment", main = "Histrogram of First Year of Treatment")
+```
+\
+It is safe to assume that a teacher's performance will stay relatively consistent over a short period as will the composition and achievements of a student body, barring some extreme circumstances. Over a longer period, it is likely that a teacher will receive further training and may earn more degrees, thus changing their teaching style and possibly the outcomes of their students. Independent of additional training or education, as a person ages, their personality is likely to change to a degree and subsequently, so will their teaching style and student outcomes. Similarly, over a longer period, the demographics of a region and student body are likely to change, and it is possible to see significant changes in student achievement. However, over a short period, it is a relatively safe assumption that the teacher and students have not changed and attribute changes in student outcomes to the inclusion of a classroom aide. In the simplest terms, the only thing that has changed is the presence of a classroom aide. Therefore, any changes in student achievements must be a direct result of this change. \
+\
+2. 
+```{r control and treatment groups}
+#isolating the control group
+control <- data[which(data$treatment == 0),]
+yearsc <- unique(control$year)
+mathc <- rep(NA, length(yearsc))
+aidesc <- rep(NA, length(yearsc))
+
+#average math scores and number of aides each calendar year
+for (i in 1:length(yearsc)){
+  mathc[i] <- mean(control$mathscore[which(control$year == yearsc[i])])
+  aidesc[i] <- mean(control$numaides[which(control$year == yearsc[i])])
+}
+
+#plots
+plot(yearsc,mathc, xlab = "Year", ylab = "Average Math Scores", main = "Average Math Scores over Years 2001 to 2018 
+     in the Control Group")
+plot(yearsc,aidesc, xlab = "Year", ylab = "Average Number of Aides", main = "Average Number of Classroom Aides over Years 2001 to 2018 
+     in the Control Group")
+
+#isolating the treatment group
+treatment <- data[which(data$treatment == 1),]
+yearst <- unique(treatment$year)
+matht <- rep(NA, length(yearst))
+aidest <- rep(NA, length(yearst))
+
+#average math scores and number of aides each calendar year
+for (i in 1:length(yearst)){
+  matht[i] <- mean(treatment$mathscore[which(control$year == yearst[i])])
+  aidest[i] <- mean(treatment$numaides[which(control$year == yearst[i])])
+}
+
+#plots
+plot(yearst,matht, xlab = "Year", ylab = "Average Math Scores", main = "Average Math Scores over Years 2001 to 2018
+     in the Treatment Group")
+plot(yearst,aidest, xlab = "Year", ylab = "Average Number of Aides", main = "Average Number of Classroom Aides over Years 2001 to 2018
+     in the Treatment Group")
+```
+\
+In the control data, we see that the number of classroom aides remains consistent around 2 aides over the period of the data. However, over the same period, there is a clear upward trend in average math scores. This suggests that there are other factors driving up math scores in addition to the presence of a classroom aide. For example, this could be a result of the exam becoming easier over the years to make it easier to achieve a high score in a flawed attempt to increase student confidence. It could also be a result of more students emphasizing STEM subjects, aligning with the explosion of computing power and data that has made data analytics a highly desirable and profitable career. In the treatment data, we see a steady increase in average classroom aides between 2004 and 2013, increasing from an average of 2 aides to an average of 4 aides over this period. We also see a clear upward trend in math scores over the years. Although, there are important differences to note. First, in the period of the data, 2001 - 2018, test scores increased from about 1105 to about 1145 in the control group. Over the same period, test scores in the treatment group increased from about 1135 to 1185. We see an approximate 40 point increase in average test scores for the control group and an approximate 50 point increase in average test scores for the treatment group, which seems to suggest that the increase in classroom aides led to higher test scores among students. But, we can see that the average test scores were higher among the treatment group to begin with, which challenges the credibility of the idea that the treatment and control classrooms were identical except for the change in the number of aides. This is potentially problematic, as the difference in differences research design relies on two groups being identical except for the treatment, allowing the researcher to isolate the treatment effect. \
+\
+3. 
+```{r time since treatment}
+#years of treatment being negative indicates a time before the treatment was implemented
+since_treatment <- treatment$year - treatment$yr1_treatment  
+since_treatment_data <- treatment
+since_treatment_data$Years_Treatment <- since_treatment
+
+lengths <- unique(since_treatment_data$Years_Treatment)
+math <- rep(NA, length(lengths))
+for(i in 1:length(lengths)){
+  math[i] <- mean(since_treatment_data$mathscore[which(since_treatment_data$Years_Treatment == lengths[i])])
+}
+#plots
+plot(lengths,math, xlab = "Years of Treatment", ylab = "Average Math Scores", main = "Average Math Scores By Length of Treatment in Years")
+```
+\
+The plot relates to the event study research design as the introduction of a classroom aide or classroom aides can be seen as the event of which we would like to determine the impact. The main issue with applying the event study research design as opposed to difference in differences is that because we are only applying this methodology to the treatment group, it is impossible to isolate the direct effects of the presence of additional classroom aides from other correlated events that may be driving these changes in student performance. As an example, it is possible that a significant proportion of the classrooms who received treatment in the form of additional classroom aides were in wealthier school districts who were more able to afford additional aides. If this is the case, then just by treating the introduction of classroom aides as the event and measuring outcomes in the form of average math test scores, we cannot isolate the effects on student achievement of being in a wealthier district or in a district that has had a policy shift towards allocating more funds to schools in that town or region. Further, in a wealthier district, there are likely to be additional factors including extreme levels of competition among students, a willingness of parents to pay for tutoring, and being able to select for more qualified teachers and aides among other factors.\
+\
+4. $y_{it}$ = $\alpha_{0}$ + $\alpha_{1}T_{i}$ + $\sum_{k\neq 0} [\delta_{k}D_{k}] + \gamma_{s*g} + \gamma_{t} + \epsilon_{it}$ \
+\
+where $y_{it}$ denote math test scores for teacher i in year t,  $T_{i}$ denote an indicator for
+being a treated teacher, $D_{k}$ denotes an indicator variable for time since treatment = k, $\gamma_{s*g}$ denotes school-grade fixed effects, and $\gamma_{t}$ denotes calendar year dummies. 
+```{r first reg}
+#creating column names based on the unique school ids and grades
+school <- unique(data$schoolid)
+grade <- unique(data$grade)
+interactions <- list()
+for (i in 1:length(school)){
+  for (j in 1:length(grade)){
+    interactions <- append(interactions, paste("School",i,"Grade",grade[j], sep = "-"))
+  }
+}
+
+#encoding fixed effect interaction term of school id with dummy variables 
+dummies <- matrix(nrow = nrow(data), ncol = length(interactions))
+for (i in 1:length(interactions)){
+  temp <- strsplit(toString(interactions[i]), split = "-")
+  dummies[which(data$schoolid == as.numeric(temp[[1]][2]) & data$grade == as.numeric(temp[[1]][4])),i] <- 1
+  dummies[which(is.na(dummies[,i])),i] <- 0
+}
+
+#converting to data frame
+dummies <- as.data.frame(dummies)
+colnames(dummies) <- interactions
+#paste("`",interactions,"`","+", collapse = "")
+
+#creating column names based on the unique calendar years
+year <- unique(data$year)
+for (i in 1:length(year)){
+  year[i] <- toString(year[i])
+}
+
+#encoding fixed effect of calendar year with dummy variables 
+year_dummies <- matrix(nrow = nrow(data), ncol = length(year))
+for (i in 1:length(year)){
+  year_dummies[which(data$year == as.numeric(year[i])),i] <- 1
+  year_dummies[which(is.na(year_dummies[,i])),i] <- 0
+}
+
+#converting to data frame
+year_dummies <- as.data.frame(year_dummies)
+colnames(year_dummies) <- year
+
+#combine to new data set
+new_data <- cbind(data,dummies,year_dummies)
+new_data$years_treatment <- new_data$year - new_data$yr1_treatment
+new_data$years_treatment[which(new_data$treatment == 0)] <- NA
+
+#creating column names based on years of treatment
+years_treatment <- unique(new_data$years_treatment[which(!is.na(new_data$years_treatment))])
+for(i in 1:length(years_treatment)){
+  years_treatment[i] <- toString(years_treatment[i])
+}
+
+#encoding fixed effect of years of treatment with dummy variables 
+treatment_dummies <- matrix(nrow = nrow(new_data), ncol = (length(years_treatment)+1))
+for (i in 1:length(years_treatment)){
+  treatment_dummies[which(new_data$years_treatment == as.numeric(years_treatment[i])),i] <- 1
+  treatment_dummies[which(is.na(treatment_dummies[,i])),i] <- 0
+}
+treatment_dummies[,(length(years_treatment)+1)] <- NA
+
+#converting to data frame
+treatment_dummies <- as.data.frame(treatment_dummies)
+colnames(treatment_dummies) <- c(years_treatment,"No_Treatment")
+#treatment_dummies
+
+#combine to new data set
+new_data <- cbind(new_data, treatment_dummies)
+
+#OLS regression with dummy variables
+reg1 <- lm(mathscore ~ treatment + `-7` +`-3` +`-11` +`-9` +`-4` +`-6` +`-10` +`-5` +`-8` +`-2` +`-1` +`0` +`1` +`2` +`3`  +`4` +`5` + `6` + `7` + `8` + `9` + `10` + `11` + `12` + `13` + `School-1-Grade-3` +`School-1-Grade-4` +`School-1-Grade-5` +`School-2-Grade-3` +`School-2-Grade-4` +`School-2-Grade-5` +`School-3-Grade-3` +`School-3-Grade-4` +`School-3-Grade-5` +`School-4-Grade-3` +`School-4-Grade-4` +`School-4-Grade-5` +`School-5-Grade-3` +`School-5-Grade-4` +`School-5-Grade-5` +`School-6-Grade-3` +`School-6-Grade-4` +`School-6-Grade-5` +`School-7-Grade-3` + `School-7-Grade-4` +`School-7-Grade-5` +`School-8-Grade-3` +`School-8-Grade-4` +`School-8-Grade-5` +`School-9-Grade-3` +`School-9-Grade-4` +`School-9-Grade-5` +`School-10-Grade-3` +`School-10-Grade-4` +`School-10-Grade-5` +`School-11-Grade-3` +`School-11-Grade-4` +`School-11-Grade-5` +`School-12-Grade-3` +`School-12-Grade-4` +`School-12-Grade-5` +`School-13-Grade-3` +`School-13-Grade-4` +`School-13-Grade-5` +`School-14-Grade-3` +`School-14-Grade-4` +`School-14-Grade-5` +`School-15-Grade-3` +`School-15-Grade-4` +`School-15-Grade-5` +`School-16-Grade-3` +`School-16-Grade-4` +`School-16-Grade-5` +`School-17-Grade-3` +`School-17-Grade-4` +`School-17-Grade-5` +`School-18-Grade-3` +`School-18-Grade-4` +`School-18-Grade-5` +`School-19-Grade-3` +`School-19-Grade-4` +`School-19-Grade-5` +`School-20-Grade-3` +`School-20-Grade-4` +`School-20-Grade-5` +`School-21-Grade-3` +`School-21-Grade-4` +`School-21-Grade-5` +`School-22-Grade-3` +`School-22-Grade-4` +`School-22-Grade-5` +`School-23-Grade-3` +`School-23-Grade-4` +`School-23-Grade-5` +`School-24-Grade-3` +`School-24-Grade-4` +`School-24-Grade-5` +`School-25-Grade-3` +`School-25-Grade-4` +`School-25-Grade-5` +`School-26-Grade-3` +`School-26-Grade-4` +`School-26-Grade-5` +`School-27-Grade-3` +`School-27-Grade-4` +`School-27-Grade-5` +`School-28-Grade-3` +`School-28-Grade-4` +`School-28-Grade-5` +`School-29-Grade-3` +`School-29-Grade-4` +`School-29-Grade-5` +`School-30-Grade-3` +`School-30-Grade-4` +`School-30-Grade-5` +`School-31-Grade-3` +`School-31-Grade-4` +`School-31-Grade-5` +`School-32-Grade-3` +`School-32-Grade-4` +`School-32-Grade-5` +`School-33-Grade-3` +`School-33-Grade-4` +`School-33-Grade-5` +`School-34-Grade-3` +`School-34-Grade-4` +`School-34-Grade-5` +`School-35-Grade-3` +`School-35-Grade-4` +`School-35-Grade-5` +`School-36-Grade-3` +`School-36-Grade-4` +`School-36-Grade-5` +`School-37-Grade-3` +`School-37-Grade-4` +`School-37-Grade-5` +`School-38-Grade-3` +`School-38-Grade-4` +`School-38-Grade-5` +`School-39-Grade-3` +`School-39-Grade-4` +`School-39-Grade-5` +`School-40-Grade-3` +`School-40-Grade-4` +`School-40-Grade-5` +`School-41-Grade-3` +`School-41-Grade-4` +`School-41-Grade-5` +`School-42-Grade-3` +`School-42-Grade-4` +`School-42-Grade-5` +`School-43-Grade-3` +`School-43-Grade-4` +`School-43-Grade-5` +`School-44-Grade-3` +`School-44-Grade-4` + `2002` + `2003` + `2004` + `2005` + `2006` + `2007` +`2008`+`2009`+`2010`+`2011`+`2012`+`2013`+`2014`+`2015`+`2016`+`2017`+ `2018`, data = new_data)
+sum1 <- summary(reg1)
+sum1
+```
+\
+It makes sense to include a fixed effect variable to account for the different schools and grade levels. Assuming that the same test is being administered to all students, there will be differences in achievement as a result of students undergoing further education with age and the varying quality of schools. Further, depending on the age of students, environment of the school, and other factors, the presence of additional classroom aides may have varying degrees of effectiveness. For example, students at a school with larger class sizes and less funding may benefit significantly more from the presence of classroom aides than students students in a well-funded school with smaller classes. Clustering the standard errors is not appropriate in this case, as no where in the experiment design or assignment of treatment is there sampling. Instead, the assignment of classroom aides is much closer to stratification.\
+\
+5. $y_{it}$ = $\alpha_{0}$ + $\alpha_{1}T_{i}$ + $\sum_{k\neq 0} [\delta_{k}D_{k}] + \gamma_{s} + \gamma_{g} + \gamma_{t} + \epsilon_{it}$ \
+\
+Where $y_{it}$ denote math test scores for teacher i in year t, $T_{i}$ denote an indicator for being a treated teacher, $D_{k}$ denotes an indicator variable for time since treatment = k, $\gamma_{s}$ denotes school fixed effects, $\gamma_{g}$ denote grade fixed effects, and $\gamma_{t}$ denotes calendar year dummies. 
+```{r second reg}
+#creating school dummies column names
+for (s in school){
+  school[s] <- paste("school_",toString(school[s]),sep = "")
+} 
+
+#assign values to dummy variables
+school_dummies <- matrix(nrow = nrow(data), ncol = (length(school)-1))
+for (i in (1:(length(school)-1))){
+  temp <- strsplit(toString(school[i]), split = "_")
+  school_dummies[which(data$schoolid == as.numeric(temp[[1]][2])),i] <- 1
+  school_dummies[which(is.na(school_dummies[,i])),i] <- 0
+}
+
+#converting to data frame
+school_dummies <- as.data.frame(school_dummies)
+colnames(school_dummies) <- school[-length(school)]
+
+#creating grade dummies column names
+grade <- grade[1:3]
+for (g in 1:length(grade)){
+  grade[g] <- paste("grade_",toString(grade[g]),sep = "")
+}
+
+#assigning values to dummy variables
+grade_dummies <- matrix(nrow = nrow(data), ncol = (length(grade)-1))
+for (i in (1:(length(grade)-1))){
+  temp <- strsplit(toString(grade[i]), split = "_")
+  grade_dummies[which(data$grade == as.numeric(temp[[1]][2])),i] <- 1
+  grade_dummies[which(is.na(grade_dummies[,i])),i] <- 0
+}
+
+#converting to data frame
+grade_dummies <- as.data.frame(grade_dummies)
+colnames(grade_dummies) <- grade[-length(grade)]
+
+#combining to new data set
+new_data2 <- cbind(data, school_dummies, grade_dummies)
+
+#adding years treatment
+new_data2$years_treatment <- new_data2$year - new_data2$yr1_treatment
+new_data2$years_treatment[which(new_data$treatment == 0)] <- NA
+
+#creating column names based on years of treatment
+years_treatment <- unique(new_data2$years_treatment[which(!is.na(new_data$years_treatment))])
+for(i in 1:length(years_treatment)){
+  years_treatment[i] <- toString(years_treatment[i])
+}
+
+#encoding fixed effect of years of treatment with dummy variables 
+treatment_dummies <- matrix(nrow = nrow(new_data), ncol = length(years_treatment))
+for (i in 1:length(years_treatment)){
+  treatment_dummies[which(new_data$years_treatment == as.numeric(years_treatment[i])),i] <- 1
+  treatment_dummies[which(is.na(treatment_dummies[,i])),i] <- 0
+}
+
+
+#converting to data frame
+treatment_dummies <- as.data.frame(treatment_dummies)
+colnames(treatment_dummies) <- years_treatment
+
+#combining to new data set
+new_data2 <- cbind(new_data2, treatment_dummies, year_dummies)
+
+#OLS regression with dummy variables
+reg2 <- lm(mathscore ~ treatment + `-11` +`-10` + `-9` +`-8` +`-7` + `-6`  +`-5` +`-4`+`-3`  +`-2` +`-1` +`0` +`1` +`2` +`3`  +`4` +`5` + `6` + `7` + `8` + `9` + `10` + `11` + `12` + `13` + `school_1` + `school_2`  + `school_3` + `school_4` + `school_5`  + `school_6` + `school_7` + `school_8`  + `school_9`  + `school_10` + `school_11` + `school_12` + `school_13` + `school_14` + `school_15` + `school_16` + `school_17` + `school_18` + `school_19` + `school_20` + `school_21` + `school_22` + `school_23` + `school_24` + `school_25` + `school_26` + `school_27` + `school_28` + `school_29` + `school_30` + `school_31` + `school_32` + `school_33` + `school_34` + `school_35` + `school_36` + `school_37` + `school_38` + `school_39` + `school_40` + `school_41` + `school_42` + `school_43` + `grade_3` + `grade_4` + `2002` + `2003` + `2004` + `2005` + `2006` + `2007` +`2008`+`2009`+`2010`+`2011`+`2012`+`2013`+`2014`+`2015`+`2016`+`2017`+ `2018`, data = new_data2)
+sum2 <- summary(reg2)
+sum2
+
+#clustering standard errors
+Tcoeffs_cl <- coeftest(reg2, vcov = vcovCL, cluster = ~schoolid)
+Tcoeffs_cl
+
+#plot
+plot(-11:13,Tcoeffs_cl[3:27,1], xlab = "Years of Treatment (Negative Indicating Time Before Treatment)", ylab = "Expected Effect on Student Math Test Scores", main = "Math Test Scores v.s. Treatment Time")
+```
+\
+The coefficients, $\delta_{k}$, are measuring the expected impacts of additional years of additional classroom aides on students' test scores.There appear to be two distinct clusters of coefficients before year 0, i.e. before the arrival of additional classroom aides, and after year 0, after the introduction of additional classroom aides. Graphically, it appears that additional classroom aides had a positive effect on student performance, but looking at the P-values from the clustered standard errors, we see that only the coefficient corresponding to 5 years of additional classroom aides is significant at the 5% level. Thus, based on this model, the effect of additional classroom aides is not definitive.\
+\
+6. 
+```{r school grade linear calenda}
+#adding number of students in each grade in each calendar year as a new column
+new_data2$grade_in_year <- rep(NA, nrow(new_data2))
+for (i in 1:length(unique(new_data2$year))){
+  for (j in 3:5){
+    temp <- length(which(new_data2$grade == j & new_data2$year == unique(new_data2$year)[i]))
+    new_data2$grade_in_year[which(new_data2$grade == j & new_data2$year == unique(new_data2$year)[i])] <- temp 
+  }
+}
+
+#OLS regression with dummy variables
+reg3 <- lm(mathscore ~ treatment + `-11` +`-10` + `-9` +`-8` +`-7` + `-6`  +`-5` +`-4`+`-3`  +`-2` +`-1` +`0` +`1` +`2` +`3`  +`4` +`5` + `6` + `7` + `8` + `9` + `10` + `11` + `12` + `13` + `school_1` + `school_2`  + `school_3` + `school_4` + `school_5`  + `school_6` + `school_7` + `school_8`  + `school_9`  + `school_10` + `school_11` + `school_12` + `school_13` + `school_14` + `school_15` + `school_16` + `school_17` + `school_18` + `school_19` + `school_20` + `school_21` + `school_22` + `school_23` + `school_24` + `school_25` + `school_26` + `school_27` + `school_28` + `school_29` + `school_30` + `school_31` + `school_32` + `school_33` + `school_34` + `school_35` + `school_36` + `school_37` + `school_38` + `school_39` + `school_40` + `school_41` + `school_42` + `school_43` + `grade_3` + `grade_4` + `2002` + `2003` + `2004` + `2005` + `2006` + `2007` +`2008`+`2009`+`2010`+`2011`+`2012`+`2013`+`2014`+`2015`+`2016`+`2017`+ `2018` + grade_in_year, data = new_data2)
+sum3 <- summary(reg3)
+sum3
+
+#clustering standard errors
+Tcoeffs_cl2 <- coeftest(reg3, vcov = vcovCL, cluster = ~schoolid)
+Tcoeffs_cl2
+
+#plot of treatment years coefficients
+plot(-11:13,Tcoeffs_cl2[3:27,1], xlab = "Years of Treatment (Negative Indicating Time Before Treatment)", ylab = "Expected Effect on Student Math Test Scores", main = "Math Test Scores v.s. Treatment Time")
+
+ordered_grades_3 <- rep(NA,length(unique(new_data2$year)))
+ordered_grades_4 <- rep(NA,length(unique(new_data2$year)))
+ordered_grades_5 <- rep(NA,length(unique(new_data2$year)))
+for (i in 1:length(unique(new_data2$year))){
+  ordered_grades_3[i] <- unique(new_data2$grade_in_year[which(new_data2$year == unique(new_data2$year)[i])][1])
+  ordered_grades_4[i] <- unique(new_data2$grade_in_year[which(new_data2$year == unique(new_data2$year)[i])][2])
+  ordered_grades_5[i] <- unique(new_data2$grade_in_year[which(new_data2$year == unique(new_data2$year)[i])][3])
+}
+
+#plots of the number of children in each grade in each calendar year
+plot(unique(new_data2$year),ordered_grades_3, xlab = "Years", ylab = "Number of 3rd Graders", main = "Number of 3rd Graders per Year")
+plot(unique(new_data2$year),ordered_grades_4, xlab = "Years", ylab = "Number of 4th Graders", main = "Number of 4th Graders per Year")
+plot(unique(new_data2$year),ordered_grades_5, xlab = "Years", ylab = "Number of 5th Graders", main = "Number of 5th Graders per Year")
+```
+\
+I accounted for the potential changes in the number of students in each grade changing over the years as a result of unaccounted for factors including changing birthrates by including a column measuring the number of students in each grade in each calendar year. The coefficients appear to be robust to the controlling of these trends, as there are no apparent trends in the number of children in each grade over the years.\
+\
+7. 
+```{r numaides}
+#OLS regression with dummy variables
+reg4 <- lm(numaides ~ treatment + `-11` +`-10` + `-9` +`-8` +`-7` + `-6`  +`-5` +`-4`+`-3`  +`-2` +`-1` +`0` +`1` +`2` +`3`  +`4` +`5` + `6` + `7` + `8` + `9` + `10` + `11` + `12` + `13` + `school_1` + `school_2`  + `school_3` + `school_4` + `school_5`  + `school_6` + `school_7` + `school_8`  + `school_9`  + `school_10` + `school_11` + `school_12` + `school_13` + `school_14` + `school_15` + `school_16` + `school_17` + `school_18` + `school_19` + `school_20` + `school_21` + `school_22` + `school_23` + `school_24` + `school_25` + `school_26` + `school_27` + `school_28` + `school_29` + `school_30` + `school_31` + `school_32` + `school_33` + `school_34` + `school_35` + `school_36` + `school_37` + `school_38` + `school_39` + `school_40` + `school_41` + `school_42` + `school_43` + `grade_3` + `grade_4` + `2002` + `2003` + `2004` + `2005` + `2006` + `2007` +`2008`+`2009`+`2010`+`2011`+`2012`+`2013`+`2014`+`2015`+`2016`+`2017`+ `2018`, data = new_data2)
+sum4 <- summary(reg4)
+sum4
+
+#clustering standard errors
+Tcoeffs_cl3 <- coeftest(reg4, vcov = vcovCL, cluster = ~schoolid)
+Tcoeffs_cl3
+
+#plot
+plot(-11:13,Tcoeffs_cl3[3:27,1], xlab = "Years of Treatment (Negative Indicating Time Before Treatment)", ylab = "Number of Aides", main = "Number of Aides v.s. Treatment Time")
+```
+\
+Treated teachers received 2 additional aides when the program took effect.\
+\
+8. $y_{it}$ = $\alpha_{0}$ + $\alpha_{1}T_{i}$ + $\beta$$numaides_{it}$ + $\gamma_{s}$ + $\gamma_{g}$ + $\gamma_{t}$ + $epsilon_{it}$\
+\
+In short, the above proposed regression is potentially problematic, as it does not account for the skill or experience of the classroom aides in any way and essentially assumes all classroom aides are created equal and are never changing. These assumptions cannot possibly hold, as for one thing, assuming that this data was taken from several school districts, not all school districts are created equal. For example, there are often student loan forgiveness program and other incentives to entice budding young teachers to underperforming school districts, while more experienced and generally better teachers may be more likely to receive job offers from better performing school districts with higher pay. It is reasonable to assume that classroom aides would have similar incentives, driving the best teachers and classroom aides to the districts or schools that are already performing well. Further, this model does not account for interactions between teachers and classroom aides. If their relationship is symbioitic, it is likely to benefit student performance. However, if their relationship is poor or disfunctional, this is likely to cause a poor classroom environment and drive down student performance.\
+\
+9. To address the endogeneity concerns in (8), I will use the following instrumental variable (IV) strategy. I define TAfter = T*After where T is an indicator for being a treatment teacher and After is an indicator for time since treatment being positive, and then I will estimate the regression in (8) while instrumenting for the number of aides with TAfter. 
+```{r IV regression}
+#creating indicator variable for being after treatment
+new_data2$after <- rep(NA, nrow(new_data2))
+new_data2$after[which(new_data2$years_treatment > 0)] <- 1
+new_data2$after[which(is.na(new_data2$after))] <- 0
+new_data2$after[which(is.na(years_treatment))] <- NA
+
+#OLS regression with dummy variables
+reg5 <- lm(mathscore ~ treatment + I(treatment*after) + `school_1` + `school_2`  + `school_3` + `school_4` + `school_5`  + `school_6` + `school_7` + `school_8`  + `school_9`  + `school_10` + `school_11` + `school_12` + `school_13` + `school_14` + `school_15` + `school_16` + `school_17` + `school_18` + `school_19` + `school_20` + `school_21` + `school_22` + `school_23` + `school_24` + `school_25` + `school_26` + `school_27` + `school_28` + `school_29` + `school_30` + `school_31` + `school_32` + `school_33` + `school_34` + `school_35` + `school_36` + `school_37` + `school_38` + `school_39` + `school_40` + `school_41` + `school_42` + `school_43` + `grade_3` + `grade_4` + `2002` + `2003` + `2004` + `2005` + `2006` + `2007` +`2008`+`2009`+`2010`+`2011`+`2012`+`2013`+`2014`+`2015`+`2016`+`2017`+ `2018` + grade_in_year, data = new_data2)
+sum5 <- summary(reg5)
+sum5
+
+#clustering standard errors
+Tcoeffs_cl4 <- coeftest(reg5, vcov = vcovCL, cluster = ~schoolid)
+Tcoeffs_cl4
+
+#accessing required data to calculate covariance of IV and outcome
+TAfter <- new_data2$treatment[which(!is.na(new_data2$treatment) & !is.na(new_data2$after))] * new_data2$after[which(!is.na(new_data2$treatment) & !is.na(new_data2$after))]
+
+math_test <- new_data2$mathscore[which(!is.na(new_data2$treatment) & !is.na(new_data2$after))]
+```
+\
+In this setting, the IV inclusion condition is that there is an association between TAfter and students' math test scores. The exclusion condition is that TAfter does not have a direct effect on students' math scores, only through affecting the independent variables. We can see that there is evidence to show that the inclusion condition is met, as the covariance between the instrumental variable and the test results is `r cov(TAfter,math_test)`. According to this model, the addition of a classroom aide results in a `r Tcoeffs_cl4[3,1]` point increase in expected math test scores.
